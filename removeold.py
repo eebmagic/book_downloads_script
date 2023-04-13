@@ -1,8 +1,6 @@
 import os
 import json
 from tqdm import tqdm
-import time
-
 
 def find_txt_files(dir_path):
     txt_files = []
@@ -15,6 +13,9 @@ def find_txt_files(dir_path):
                 txt_files.append((file_path, ident, file_size))
     return txt_files
 
+print("walking files...")
+files = find_txt_files('./downloads/')
+print('done')
 
 print("reading file...")
 with open('available_books.json') as file:
@@ -27,34 +28,38 @@ for d in tqdm(lines):
 
 years = []
 counts = {}
-skiptotal = 0
-currtime = time.time()
-twodaytime = currtime - 172800 # Unix time 48 hours ago
-newtotal = 0
+noyear = set()
+nodata = set()
+too_old = set()
 print(f"walking dir...")
 for path, ident, size in tqdm(find_txt_files('./downloads/')):
     if ident in table:
-        ctime = os.stat(path).st_ctime
-        if ctime > twodaytime:
-            newtotal += 1
-
         d = table[ident]
         if 'year' in d:
             y = table[ident]['year']
-            years.append(y)
-            counts[y] = counts.get(y, 0)+1
+
+            # if year before 1850 remove dir
+            if y < 1850:
+                too_old.add(ident)
+        else:
+            noyear.add(ident)
     else:
-        skiptotal += 1
+        nodata.add(ident)
 
-total = 0
-for year in sorted(counts.keys()):
-    total += counts[year]
-    print(year, f"{str(counts[year]):<6}", '█' * int(50 * counts[year] / max(counts.values())))
 
-print(f"\nTotal skipped: {skiptotal}")
-print(f"Total books in last 48 hours: {newtotal}")
-print(f"Total books: {total}")
+print(f"Total too old: {len(too_old)} / {len(files)} ({len(too_old)/len(files)*100:.2f}%)")
+print(f"Total no data: {len(nodata)}")
+print(f"Total no year: {len(noyear)}")
 
-import matplotlib.pyplot as plt
-plt.hist([y for y in years if y > 1750], bins=50)
-plt.show()
+relevant = [f for f in files if f[1] in too_old]
+
+import shutil
+for rel in relevant:
+    d = table[rel[1]]
+    print(d['year'], rel[1], d['title'])
+    path = '/'.join(rel[0].split('/')[:-1])
+    print(path)
+
+    # use os library to remove directory
+    # shutil.rmtree(path)
+    # print('removed')
